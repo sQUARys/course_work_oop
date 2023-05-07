@@ -10,8 +10,10 @@ import (
 // Вариант 14
 // Имитационное моделирование расписания автобусов
 
-// TODO: пауза между выездом автобус из парка, сделать кусочно линейной пассажиров, простаивание автобусов в парке
-// если такое не нужно
+// TODO:
+//  1. пауза между выездом автобус из парка
+// DONE  2. сделать кусочно линейной пассажиров
+//  3. простаивание автобусов в парке
 
 // Контроллер управления движением автобусов
 type BusController struct {
@@ -20,8 +22,10 @@ type BusController struct {
 
 // Маршрут автобуса, который проходит через несколько остановок
 type BusRoute struct {
-	stops   []*Stop       // Остановки на маршруте
-	wayTime map[*Stop]int // Расстояние между данной и следующей остановкой
+	stops                         []*Stop                  // Остановки на маршруте
+	wayTime                       map[*Stop]int            // Время между данной и следующей остановкой
+	timeGapBetweenBuses           time.Time                // Промежуток времени между двумя автобусами при старте
+	countOfBussesNeededInTheRoute func(time time.Time) int // Нужное количество автобусов на маршруте в данное время
 }
 
 // Остановка на маршруте с заданными координатами и функцией зависимости количества пассажиров от времени
@@ -36,7 +40,7 @@ type Bus struct {
 	routeNumber   int       // Номер маршрута
 	route         *BusRoute // Маршрут автобуса
 	position      *Stop     // Текущая остановка
-	positionIndex int       // Индекс остановки относительно маршрута
+	positionIndex int       // Индекс текущей остановки относительно маршрута
 	passengers    int       // Количество пассажиров в автобусе
 	capacity      int       // Вместимость пассажиров автобусом
 }
@@ -47,33 +51,27 @@ func main() {
 }
 
 func createBusController() BusController {
-	firstStop := &Stop{"First line", func(t time.Time) int {
-		return 10 * (t.Second() % 10) // количество пассажиров
-	}}
-	secondStop := &Stop{"Second line", func(t time.Time) int {
-		return 3 * (t.Second() % 10) // количество пассажиров
-	}}
-	thirdStop := &Stop{"Third line", func(t time.Time) int {
-		return 2 * (t.Second() % 10) // количество пассажиров
-	}}
-	fourthStop := &Stop{"Fourth line", func(t time.Time) int {
-		return 3 * (t.Second() % 10) // количество пассажиров
-	}}
-	fifthStop := &Stop{"Fifth line", func(t time.Time) int {
-		return 5 * (t.Second() % 10) // количество пассажиров
-	}}
-	sixthStop := &Stop{"Sixth line", func(t time.Time) int {
-		return 7 * (t.Second() % 10) // количество пассажиров
-	}}
-	seventhStop := &Stop{"Seventh line", func(t time.Time) int {
-		return 15 * (t.Second() % 10) // количество пассажиров
-	}}
-	eightStop := &Stop{"Eight line", func(t time.Time) int {
-		return 11 * (t.Second() % 10) // количество пассажиров
-	}}
-	ninthStop := &Stop{"Nine line", func(t time.Time) int {
-		return 2 * (t.Second() % 10) // количество пассажиров
-	}}
+
+	passengersFunc := func(t time.Time) int {
+		switch hour := t.Hour(); {
+		case 8 <= hour && 11 >= hour:
+			return 10 * hour
+		case 18 <= hour && 20 >= hour:
+			return 20 * hour
+		default:
+			return 5 * hour
+		}
+	}
+
+	firstStop := &Stop{"First line", passengersFunc}
+	secondStop := &Stop{"Second line", passengersFunc}
+	thirdStop := &Stop{"Third line", passengersFunc}
+	fourthStop := &Stop{"Fourth line", passengersFunc}
+	fifthStop := &Stop{"Fifth line", passengersFunc}
+	sixthStop := &Stop{"Sixth line", passengersFunc}
+	seventhStop := &Stop{"Seventh line", passengersFunc}
+	eightStop := &Stop{"Eight line", passengersFunc}
+	ninthStop := &Stop{"Nine line", passengersFunc}
 
 	busRoute1 := &BusRoute{
 		stops: []*Stop{firstStop, secondStop, thirdStop},
