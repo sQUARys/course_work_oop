@@ -10,10 +10,9 @@ import (
 // Вариант 14
 // Имитационное моделирование расписания автобусов
 
-// TODO:
-//  1. пауза между выездом автобус из парка
+// DONE 1. пауза между выездом автобус из парка
 // DONE  2. сделать кусочно линейной пассажиров
-//  3. простаивание автобусов в парке
+// DONE 3. простаивание автобусов в парке
 
 // Контроллер управления движением автобусов
 type BusController struct {
@@ -24,8 +23,9 @@ type BusController struct {
 type BusRoute struct {
 	stops                         []*Stop                  // Остановки на маршруте
 	wayTime                       map[*Stop]int            // Время между данной и следующей остановкой
-	timeGapBetweenBuses           time.Time                // Промежуток времени между двумя автобусами при старте
+	timeGapBetweenBuses           time.Duration            // Промежуток времени между двумя автобусами при старте
 	countOfBussesNeededInTheRoute func(time time.Time) int // Нужное количество автобусов на маршруте в данное время
+	countOfCurrentBusesInTheRoute int
 }
 
 // Остановка на маршруте с заданными координатами и функцией зависимости количества пассажиров от времени
@@ -45,24 +45,37 @@ type Bus struct {
 	capacity      int       // Вместимость пассажиров автобусом
 }
 
+const (
+	// Когда автобус сделал один маршрут туда обратно, у него есть перерыв
+	breakAfterTwoSideRoute = time.Millisecond
+	// Промежуток между выходом автобусов из парка
+	timeGapBetweenBuses = 2 * time.Millisecond
+	// Количество раз, сколько автобус сделает маршрутов туда обратно, перед тем как закончить
+	countOfTwoSideWaysOfBus           = 5
+	multipliedTimeForWaysBetweenStops = time.Millisecond
+)
+
 func main() {
 	busController := createBusController()
 	busController.Simulate()
 }
 
 func createBusController() BusController {
+	// test case(для того, чтобы не ждать часами работы программы)
+	// rand.Seed(time.Now().UnixNano())
+	// min := 8
+	// max := 22
 
 	passengersFunc := func(t time.Time) int {
-		switch hour := t.Hour(); {
+		switch hour := t.Hour(); { //  test case : hour := rand.Intn(max-min+1) + min;
 		case 8 <= hour && 11 >= hour:
-			return 10 * hour
-		case 18 <= hour && 20 >= hour:
 			return 20 * hour
+		case 18 <= hour && 20 >= hour:
+			return 40 * hour
 		default:
 			return 5 * hour
 		}
 	}
-
 	firstStop := &Stop{"First line", passengersFunc}
 	secondStop := &Stop{"Second line", passengersFunc}
 	thirdStop := &Stop{"Third line", passengersFunc}
@@ -73,6 +86,16 @@ func createBusController() BusController {
 	eightStop := &Stop{"Eight line", passengersFunc}
 	ninthStop := &Stop{"Nine line", passengersFunc}
 
+	countOfBussesNeededInTheRouteFunc := func(t time.Time) int {
+		switch hour := t.Second(); { // change to hour
+		case 8 <= hour && 11 >= hour:
+			return 5 * hour
+		case 18 <= hour && 20 >= hour:
+			return 10 * hour
+		default:
+			return 2 * hour
+		}
+	}
 	busRoute1 := &BusRoute{
 		stops: []*Stop{firstStop, secondStop, thirdStop},
 		wayTime: map[*Stop]int{
@@ -80,8 +103,10 @@ func createBusController() BusController {
 			secondStop: 5,
 			thirdStop:  2,
 		},
+		timeGapBetweenBuses:           timeGapBetweenBuses,
+		countOfCurrentBusesInTheRoute: 0,
+		countOfBussesNeededInTheRoute: countOfBussesNeededInTheRouteFunc,
 	}
-
 	busRoute2 := &BusRoute{
 		stops: []*Stop{secondStop, firstStop, thirdStop},
 		wayTime: map[*Stop]int{
@@ -89,8 +114,10 @@ func createBusController() BusController {
 			firstStop:  20,
 			thirdStop:  2,
 		},
+		countOfCurrentBusesInTheRoute: 0,
+		timeGapBetweenBuses:           timeGapBetweenBuses,
+		countOfBussesNeededInTheRoute: countOfBussesNeededInTheRouteFunc,
 	}
-
 	busRoute3 := &BusRoute{
 		stops: []*Stop{fifthStop, sixthStop, seventhStop},
 		wayTime: map[*Stop]int{
@@ -98,8 +125,10 @@ func createBusController() BusController {
 			sixthStop:   50,
 			seventhStop: 10,
 		},
+		countOfCurrentBusesInTheRoute: 0,
+		timeGapBetweenBuses:           timeGapBetweenBuses,
+		countOfBussesNeededInTheRoute: countOfBussesNeededInTheRouteFunc,
 	}
-
 	busRoute4 := &BusRoute{
 		stops: []*Stop{fourthStop, ninthStop, thirdStop},
 		wayTime: map[*Stop]int{
@@ -107,8 +136,10 @@ func createBusController() BusController {
 			ninthStop:  20,
 			thirdStop:  54,
 		},
+		countOfCurrentBusesInTheRoute: 0,
+		timeGapBetweenBuses:           timeGapBetweenBuses,
+		countOfBussesNeededInTheRoute: countOfBussesNeededInTheRouteFunc,
 	}
-
 	busRoute5 := &BusRoute{
 		stops: []*Stop{eightStop, fifthStop, secondStop},
 		wayTime: map[*Stop]int{
@@ -116,6 +147,9 @@ func createBusController() BusController {
 			eightStop:  60,
 			fifthStop:  20,
 		},
+		countOfCurrentBusesInTheRoute: 0,
+		timeGapBetweenBuses:           timeGapBetweenBuses,
+		countOfBussesNeededInTheRoute: countOfBussesNeededInTheRouteFunc,
 	}
 
 	busController := BusController{
@@ -139,14 +173,25 @@ func (c *BusController) Simulate() {
 
 	for _, bus := range c.buses {
 		wg.Add(1)
-		go bus.startTwoSideRoute(&wg)
+		go bus.startWorking(&wg)
 	}
 
 	wg.Wait()
 }
-
-func (b *Bus) startTwoSideRoute(wg *sync.WaitGroup) {
+func (b *Bus) startWorking(wg *sync.WaitGroup) {
 	defer wg.Done()
+
+	for i := 0; i < countOfTwoSideWaysOfBus; i++ {
+		currentTime := time.Now()
+		if b.route.countOfCurrentBusesInTheRoute+1 <= b.route.countOfBussesNeededInTheRoute(currentTime) {
+			b.route.countOfCurrentBusesInTheRoute++
+			b.startTwoSideRoute()
+			time.Sleep(breakAfterTwoSideRoute)
+		}
+	}
+}
+
+func (b *Bus) startTwoSideRoute() {
 
 	f, err := os.OpenFile(fmt.Sprintf("route%d.txt", b.routeNumber), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
@@ -155,51 +200,72 @@ func (b *Bus) startTwoSideRoute(wg *sync.WaitGroup) {
 	}
 	defer f.Close()
 
-	for len(b.route.stops)-1 > b.positionIndex {
-		b.goToNextStop()
-		logStop(f, fmt.Sprintf("Автобус %d на остановке %s\n", b.number, b.position.name))
-
-		logStop(f, b.takePassengers())
-
-		time.Sleep(time.Duration(b.route.wayTime[b.position]) * time.Millisecond)
+	// автобусы выходят из парка на маршрут с периодичностью
+	if b.route.countOfCurrentBusesInTheRoute != 0 {
+		time.Sleep(b.route.timeGapBetweenBuses)
 	}
 
-	logStop(f, fmt.Sprintf("Автобус %d завершил маршрут, и идет в обратную сторону\n", b.number))
+	b.route.countOfCurrentBusesInTheRoute++
+	logStop(f, time.Now(), fmt.Sprintf("Автобус %d вышел на маршрут №%d\n", b.number, b.routeNumber))
+
+	for len(b.route.stops)-1 > b.positionIndex {
+		b.goToNextStop()
+		logStop(f, time.Now(), fmt.Sprintf("Автобус %d на остановке %s\n", b.number, b.position.name))
+
+		passengers := b.position.passengerFunc(time.Now())
+		if passengers > 0 {
+			tackedPassengersCount := 0
+			for i := 0; i < passengers; i++ {
+				if b.capacity >= b.passengers+1 {
+					b.passengers++
+					tackedPassengersCount++
+				}
+			}
+			if tackedPassengersCount != 0 {
+				logStop(f, time.Now(), fmt.Sprintf("Автобус %d взял на остановке %d пассажиров, осталось вместительности %d\n\n", b.number, tackedPassengersCount, b.capacity-b.passengers))
+			}
+		}
+
+		time.Sleep(time.Duration(b.route.wayTime[b.position]) * multipliedTimeForWaysBetweenStops)
+	}
+
+	logStop(f, time.Now(), fmt.Sprintf("Автобус %d завершил маршрут, и идет в обратную сторону\n", b.number))
 
 	for b.positionIndex-1 >= 0 {
 		b.goToPrevStop()
-		logStop(f, fmt.Sprintf("Автобус %d на остановке %s\n", b.number, b.position.name))
+		logStop(f, time.Now(), fmt.Sprintf("Автобус %d на остановке %s\n", b.number, b.position.name))
 
-		logStop(f, b.takePassengers())
-		time.Sleep(time.Duration(b.route.wayTime[b.position]) * time.Millisecond)
+		passengers := b.position.passengerFunc(time.Now())
+		if passengers > 0 {
+			tackedPassengersCount := 0
+			for i := 0; i < passengers; i++ {
+				if b.capacity >= b.passengers+1 {
+					b.passengers++
+					tackedPassengersCount++
+				}
+			}
+			if tackedPassengersCount != 0 {
+				logStop(f, time.Now(), fmt.Sprintf("Автобус %d взял на остановке %d пассажиров, осталось вместительности %d\n\n", b.number, tackedPassengersCount, b.capacity-b.passengers))
+			}
+		}
+		time.Sleep(time.Duration(b.route.wayTime[b.position]) * multipliedTimeForWaysBetweenStops)
 	}
 
-	b.capacity += b.passengers
 	b.passengers = 0
 
-	logStop(f, fmt.Sprintf("Автобус %d завершил маршрут, высадил всех пассажиров, и идет в изначальную сторону.\n\n\n\n", b.number))
-
+	logStop(f, time.Now(), fmt.Sprintf("Автобус %d завершил маршрут, высадил всех пассажиров, и идет в изначальную сторону.\n\n\n\n", b.number))
 }
 
-func logStop(f *os.File, log string) {
-	t := time.Now().Format(time.RFC3339Nano)
-	_, err := f.WriteString(t + ": " + log)
+func logStop(f *os.File, time time.Time, log string) {
+	if log == "" {
+		return
+	}
+
+	_, err := f.WriteString(time.UTC().String() + ": " + log)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-}
-
-func (b *Bus) takePassengers() string {
-	// Если на остановке есть пассажиры, то добавляем их в автобус
-	passengers := b.position.passengerFunc(time.Now())
-	if passengers > 0 && b.capacity-passengers >= 0 {
-		b.capacity -= passengers
-		b.passengers += passengers
-		logs := fmt.Sprintf("Автобус %d взял на остановке %d пассажиров, осталось вместительности %d\n\n", b.number, passengers, b.capacity)
-		return logs
-	}
-	return ""
 }
 
 func (b *Bus) goToNextStop() {
