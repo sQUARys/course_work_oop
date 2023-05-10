@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"sync"
 	"time"
@@ -68,7 +67,7 @@ var (
 	// test case(для того, чтобы не ждать часами работы программы)
 	passengersGenerateFunc = func(prevPassengers int, t time.Time) int {
 		var count int
-		switch hour := rand.Intn(max-min+1) + min; { //  test case : hour := rand.Intn(max-min+1) + min;
+		switch hour := t.Hour(); { //  test case : hour := rand.Intn(max-min+1) + min;
 		case 8 <= hour && 11 >= hour:
 			count = prevPassengers / 6
 		case 18 <= hour && 20 >= hour:
@@ -81,7 +80,7 @@ var (
 
 	passengersOutFunc = func(prevPassengers int, t time.Time) int {
 		var count int
-		switch hour := rand.Intn(max-min+1) + min; { //  test case : hour := rand.Intn(max-min+1) + min;
+		switch hour := t.Hour(); { //  test case : hour := rand.Intn(max-min+1) + min;
 		case 8 <= hour && 11 >= hour:
 			count = prevPassengers / 8 // 10% выходят из автобуса утром
 		case 18 <= hour && 20 >= hour:
@@ -92,13 +91,14 @@ var (
 		return prevPassengers - count
 	}
 )
-var max int
-var min int
+
+// var max int
+// var min int
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
-	min = 8
-	max = 22
+	// rand.Seed(time.Now().UnixNano())
+	// min = 8
+	// max = 22
 
 	busController := createBusController()
 	busController.Simulate()
