@@ -12,12 +12,14 @@ import (
 // DONE: добавить кинотеатр с залами и с капасити
 
 type Cinema struct {
+	adress   string
 	halls    []*Hall
 	vipHalls []*VipHall
 }
 
 type Hall struct {
 	// key - movieMap, value - countOfBoughtTickets
+	number   int
 	movieMap map[Movie]int
 	capacity int
 	HallI
@@ -30,30 +32,9 @@ type VipHall struct {
 }
 
 type HallI interface {
-	// return hall and value of added cost coefficient
-	getCurrentHall() (*Hall, int)
+	// return hall, value of added cost coefficient, hallNumber and isHallVip
+	getCurrentHall() (*Hall, int, int, bool)
 	getAddedCostCoefficient() int
-}
-
-func getAddedCostCoefficient(hallI HallI) int {
-	return hallI.getAddedCostCoefficient()
-}
-
-func (hall *Hall) getAddedCostCoefficient() int {
-	// hall don't have an added cost
-	return 1
-}
-
-func (vipHall *VipHall) getAddedCostCoefficient() int {
-	return vipHall.addedCostCoefficient
-}
-
-func (hall *Hall) getCurrentHall() (*Hall, int) {
-	return hall, getAddedCostCoefficient(hall)
-}
-
-func (vipHall *VipHall) getCurrentHall() (*Hall, int) {
-	return vipHall.Hall, getAddedCostCoefficient(vipHall)
 }
 
 type Movie struct {
@@ -64,6 +45,8 @@ type Movie struct {
 }
 
 type Tickets struct {
+	isVipHall      bool
+	hallNumber     int
 	movie          Movie
 	price          int
 	countOfTickets int
@@ -84,61 +67,8 @@ type Beneficiary struct {
 }
 
 type CustomerI interface {
+	printTicketsOfCurrentHall(hallNumber int)
 	buyTicket(hall HallI, movie Movie, countOfTickets int) error
-}
-
-func buyTicket(customerI CustomerI, hall HallI, movie Movie, countOfTickets int) {
-	err := customerI.buyTicket(hall, movie, countOfTickets)
-	if err != nil {
-		log.Println(err)
-	}
-}
-
-// Обычный покупатель покупает за полную стоимость
-func (c *BasicCustomer) buyTicket(hallI HallI, movie Movie, countOfTickets int) error {
-	hall, addedCostCoefficient := hallI.getCurrentHall()
-
-	if hall.movieMap[movie]+countOfTickets > hall.capacity {
-		return fmt.Errorf("недостаточно мест в зале")
-	}
-
-	costOfTickets := countOfTickets * (movie.ticketPrice * addedCostCoefficient)
-	if c.balance-costOfTickets <= 0 {
-		return fmt.Errorf("на вашем балансе недостаточно средств")
-	}
-
-	hall.movieMap[movie] += countOfTickets
-	c.balance -= costOfTickets
-	c.tickets[movie] = Tickets{
-		movie:          movie,
-		price:          movie.ticketPrice * addedCostCoefficient,
-		countOfTickets: countOfTickets,
-	}
-	return nil
-}
-
-// Льготники покупают за 50% стоимости
-func (b *Beneficiary) buyTicket(hallI HallI, movie Movie, countOfTickets int) error {
-	hall, addedCostCoefficient := hallI.getCurrentHall()
-
-	if hall.movieMap[movie]+countOfTickets > hall.capacity {
-		return fmt.Errorf("недостаточно мест в зале")
-	}
-
-	costOfTickets := countOfTickets * (movie.ticketPrice / 2) * addedCostCoefficient
-	if b.balance-costOfTickets <= 0 {
-		return fmt.Errorf("на вашем балансе недостаточно средств")
-	}
-
-	hall.movieMap[movie] += countOfTickets
-	b.balance -= costOfTickets
-	b.tickets[movie] = Tickets{
-		movie:          movie,
-		price:          (movie.ticketPrice / 2) * addedCostCoefficient,
-		countOfTickets: countOfTickets,
-	}
-	return nil
-
 }
 
 func main() {
@@ -187,19 +117,20 @@ func main() {
 	}
 
 	cinema := &Cinema{
+		adress: "ул. Пушкина",
 		halls: []*Hall{
-			{movieMap: map[Movie]int{movie1: 0, movie2: 0, movie3: 0}, capacity: 40},
-			{movieMap: map[Movie]int{movie4: 0, movie5: 0}, capacity: 100},
-			{movieMap: map[Movie]int{movie1: 0, movie3: 0, movie6: 0}, capacity: 20},
+			{number: 1, movieMap: map[Movie]int{movie1: 0, movie2: 0, movie3: 0}, capacity: 40},
+			{number: 2, movieMap: map[Movie]int{movie4: 0, movie5: 0}, capacity: 100},
+			{number: 3, movieMap: map[Movie]int{movie1: 0, movie3: 0, movie6: 0}, capacity: 20},
 		},
 		vipHalls: []*VipHall{
 			{
 				addedCostCoefficient: 2,
-				Hall:                 &Hall{movieMap: map[Movie]int{movie2: 0, movie3: 0}, capacity: 10},
+				Hall:                 &Hall{number: 1, movieMap: map[Movie]int{movie2: 0, movie3: 0}, capacity: 10},
 			},
 			{
 				addedCostCoefficient: 3,
-				Hall:                 &Hall{movieMap: map[Movie]int{movie1: 0, movie6: 0}, capacity: 5},
+				Hall:                 &Hall{number: 2, movieMap: map[Movie]int{movie1: 0, movie6: 0}, capacity: 5},
 			},
 		},
 	}
@@ -227,19 +158,115 @@ func main() {
 	buyTicket(beneficiary, cinema.halls[0], movie1, 25)
 	buyTicket(beneficiary, cinema.vipHalls[0], movie1, 25)
 
-	// вывод информации о билете и фильме
-	fmt.Printf("Клиент: %s\n", customer.name)
-	fmt.Printf("Баланс: %d\n", customer.balance)
-	for movie, ticket := range customer.tickets {
-		fmt.Printf("Билеты на фильм %s, цена : %d , количество купленных билетов : %d\n",
-			movie.title, ticket.price, ticket.countOfTickets)
+	fmt.Printf("В кинотеатре на улице %s были оформлены следующие билеты на фильм\n", cinema.adress)
+	fmt.Println("\n...Обычные залы...")
+	for _, hall := range cinema.halls {
+		customer.printTicketsOfCurrentHall(hall.number)
+		beneficiary.printTicketsOfCurrentHall(hall.number)
+	}
+	fmt.Println("\n...VIP залы...")
+	for _, hall := range cinema.halls {
+		customer.printTicketsOfCurrentHall(hall.number)
+		beneficiary.printTicketsOfCurrentHall(hall.number)
+	}
+}
+
+func (c *BasicCustomer) printTicketsOfCurrentHall(hallNumber int) {
+	fmt.Printf("Зал №%d:\n", hallNumber)
+	for movie, tickets := range c.tickets {
+		if tickets.hallNumber == hallNumber {
+			fmt.Printf("--%s приобрел %d билетов на фильм \"%s\" на время %s",
+				c.name, c.tickets[movie].countOfTickets, movie.title, movie.startTime.UTC())
+		}
+	}
+	fmt.Println()
+}
+
+func (b *Beneficiary) printTicketsOfCurrentHall(hallNumber int) {
+	for movie, tickets := range b.tickets {
+		if tickets.hallNumber == hallNumber {
+			fmt.Printf("Зал №%d:\n", hallNumber)
+			fmt.Printf("--%s приобрел %d билетов на фильм \"%s\" на время %s",
+				b.name, b.tickets[movie].countOfTickets, movie.title, movie.startTime.UTC())
+		}
+	}
+}
+
+func getAddedCostCoefficient(hallI HallI) int {
+	return hallI.getAddedCostCoefficient()
+}
+
+func (hall *Hall) getAddedCostCoefficient() int {
+	// hall don't have an added cost
+	return 1
+}
+
+func (vipHall *VipHall) getAddedCostCoefficient() int {
+	return vipHall.addedCostCoefficient
+}
+
+func (hall *Hall) getCurrentHall() (*Hall, int, int, bool) {
+	return hall, getAddedCostCoefficient(hall), hall.number, false
+}
+
+func (vipHall *VipHall) getCurrentHall() (*Hall, int, int, bool) {
+	return vipHall.Hall, getAddedCostCoefficient(vipHall), vipHall.number, true
+}
+
+func buyTicket(customerI CustomerI, hall HallI, movie Movie, countOfTickets int) {
+	err := customerI.buyTicket(hall, movie, countOfTickets)
+	if err != nil {
+		log.Println(err)
+	}
+}
+
+// Обычный покупатель покупает за полную стоимость
+func (c *BasicCustomer) buyTicket(hallI HallI, movie Movie, countOfTickets int) error {
+	hall, addedCostCoefficient, hallNumber, isVipHall := hallI.getCurrentHall()
+
+	if hall.movieMap[movie]+countOfTickets > hall.capacity {
+		return fmt.Errorf("недостаточно мест в зале")
 	}
 
-	// вывод информации о билете и фильме
-	fmt.Printf("Клиент: %s\n", beneficiary.name)
-	fmt.Printf("Баланс: %d\n", beneficiary.balance)
-	for movie, ticket := range customer.tickets {
-		fmt.Printf("Билеты на фильм %s, цена : %d , количество купленных билетов : %d\n",
-			movie.title, ticket.price, ticket.countOfTickets)
+	costOfTickets := countOfTickets * (movie.ticketPrice * addedCostCoefficient)
+	if c.balance-costOfTickets <= 0 {
+		return fmt.Errorf("на вашем балансе недостаточно средств")
 	}
+
+	hall.movieMap[movie] += countOfTickets
+	c.balance -= costOfTickets
+	c.tickets[movie] = Tickets{
+		hallNumber:     hallNumber,
+		isVipHall:      isVipHall,
+		movie:          movie,
+		price:          movie.ticketPrice * addedCostCoefficient,
+		countOfTickets: countOfTickets,
+	}
+	return nil
+}
+
+// Льготники покупают за 50% стоимости
+func (b *Beneficiary) buyTicket(hallI HallI, movie Movie, countOfTickets int) error {
+	hall, addedCostCoefficient, hallNumber, isVipHall := hallI.getCurrentHall()
+
+	if hall.movieMap[movie]+countOfTickets > hall.capacity {
+		return fmt.Errorf("недостаточно мест в зале")
+	}
+
+	costOfTickets := countOfTickets * (movie.ticketPrice / 2) * addedCostCoefficient
+	if b.balance-costOfTickets <= 0 {
+		return fmt.Errorf("на вашем балансе недостаточно средств")
+	}
+
+	hall.movieMap[movie] += countOfTickets
+	b.balance -= costOfTickets
+	b.tickets[movie] = Tickets{
+		hallNumber:     hallNumber,
+		isVipHall:      isVipHall,
+		movie:          movie,
+		price:          (movie.ticketPrice / 2) * addedCostCoefficient,
+		countOfTickets: countOfTickets,
+	}
+	return nil
+
 }
