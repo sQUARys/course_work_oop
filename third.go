@@ -2,13 +2,20 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
+	"sort"
 	"sync"
 	"time"
 )
 
 // Вариант 14
 // Имитационное моделирование расписания автобусов
+
+// Добавить коэффициент к остановкам что каждая остановка
+
+// DONE : добавить пассажирам время ожидания сортировать
+//  по времени и брать их с остановки и логировать их
 
 // Контроллер управления движением автобусов
 type BusController struct {
@@ -26,8 +33,14 @@ type BusRoute struct {
 
 // Остановка на маршруте с заданными координатами и функцией зависимости количества пассажиров от времени
 type Stop struct {
-	name           string
-	passengerCount int
+	*sync.Mutex
+	name              string
+	passengerCount    int
+	waitingPassengers []Passenger
+}
+
+type Passenger struct {
+	startTimeOfWaiting time.Time
 }
 
 // Автобус на маршруте с заданным номером и маршрутом
@@ -66,8 +79,12 @@ var (
 
 	// test case(для того, чтобы не ждать часами работы программы)
 	passengersGenerateFunc = func(prevPassengers int, t time.Time) int {
+		if prevPassengers == 0 {
+			return rand.Intn(max-min+1) + min
+		}
+
 		var count int
-		switch hour := t.Hour(); { //  test case : hour := rand.Intn(max-min+1) + min;
+		switch hour := rand.Intn(max-min+1) + min; { // t.Hour(); { //  test case : hour := rand.Intn(max-min+1) + min;
 		case 8 <= hour && 11 >= hour:
 			count = prevPassengers / 6
 		case 18 <= hour && 20 >= hour:
@@ -79,8 +96,11 @@ var (
 	}
 
 	passengersOutFunc = func(prevPassengers int, t time.Time) int {
+		if prevPassengers == 0 {
+			return rand.Intn(max-min+1) + min
+		}
 		var count int
-		switch hour := t.Hour(); { //  test case : hour := rand.Intn(max-min+1) + min;
+		switch hour := rand.Intn(max-min+1) + min; { // t.Hour(); { //  test case : hour := rand.Intn(max-min+1) + min;
 		case 8 <= hour && 11 >= hour:
 			count = prevPassengers / 8 // 10% выходят из автобуса утром
 		case 18 <= hour && 20 >= hour:
@@ -92,30 +112,30 @@ var (
 	}
 )
 
-// var max int
-// var min int
+var max int
+var min int
 
 func main() {
-	// rand.Seed(time.Now().UnixNano())
-	// min = 8
-	// max = 22
+	rand.Seed(time.Now().UnixNano())
+	min = 10
+	max = 22
 
 	busController := createBusController()
 	busController.Simulate()
 }
 
 func createBusController() BusController {
-
-	firstStop := &Stop{"First line", 0}
-	secondStop := &Stop{"Second line", 0}
-	thirdStop := &Stop{"Third line", 0}
-	fourthStop := &Stop{"Fourth line", 0}
-	fifthStop := &Stop{"Fifth line", 0}
-	sixthStop := &Stop{"Sixth line", 0}
-	seventhStop := &Stop{"Seventh line", 0}
-	eightStop := &Stop{"Eight line", 0}
-	ninthStop := &Stop{"Nine line", 0}
-	tenStop := &Stop{"Ten line", 0}
+	var mux sync.Mutex
+	firstStop := &Stop{&mux, "First line", 0, []Passenger{}}
+	secondStop := &Stop{&mux, "Second line", 0, []Passenger{}}
+	thirdStop := &Stop{&mux, "Third line", 0, []Passenger{}}
+	fourthStop := &Stop{&mux, "Fourth line", 0, []Passenger{}}
+	fifthStop := &Stop{&mux, "Fifth line", 0, []Passenger{}}
+	sixthStop := &Stop{&mux, "Sixth line", 0, []Passenger{}}
+	seventhStop := &Stop{&mux, "Seventh line", 0, []Passenger{}}
+	eightStop := &Stop{&mux, "Eight line", 0, []Passenger{}}
+	ninthStop := &Stop{&mux, "Nine line", 0, []Passenger{}}
+	tenStop := &Stop{&mux, "Ten line", 0, []Passenger{}}
 
 	busRoute1 := &BusRoute{
 		stops: []*Stop{firstStop, secondStop, thirdStop},
@@ -241,8 +261,25 @@ func (b *Bus) startTwoSideRoute() {
 		// часть вышла
 		b.passengers = passengersOutFunc(b.passengers, time.Now())
 
+		b.position.Lock()
+
 		// генерируем еще пассажиров к уже стоящим
 		passengers := passengersGenerateFunc(b.position.passengerCount, time.Now())
+		for i := 0; i < passengers; i++ {
+			b.position.waitingPassengers = append(b.position.waitingPassengers, Passenger{time.Now()})
+		}
+
+		// сортируем по времени ожидания в порядке: от самого дальнего времени к самому ближнему к настоящему
+		sort.Slice(b.position.waitingPassengers, func(i, j int) bool {
+			firstTime := b.position.waitingPassengers[i].startTimeOfWaiting
+			secondTime := b.position.waitingPassengers[j].startTimeOfWaiting
+			return firstTime.Before(secondTime)
+		})
+
+		b.position.passengerCount = passengers
+
+		// для логирования создадим переменную которая накопит время ожидания пассажиров
+		waitingTimeOfEachPassenger := ""
 
 		if passengers > 0 {
 			tackedPassengersCount := 0
@@ -250,12 +287,20 @@ func (b *Bus) startTwoSideRoute() {
 				if b.capacity >= b.passengers+1 {
 					b.passengers++
 					tackedPassengersCount++
+					b.position.passengerCount--
+
+					waitingTimeOfCurrentPassenger := time.Now().Sub(b.position.waitingPassengers[0].startTimeOfWaiting)
+					waitingTimeOfEachPassenger += fmt.Sprintf("Пассажир №%d : %s; ", i+1, waitingTimeOfCurrentPassenger)
+					b.position.waitingPassengers = b.position.waitingPassengers[1:]
 				}
 			}
 			if tackedPassengersCount != 0 {
-				logStop(f, time.Now(), fmt.Sprintf("Автобус %d взял на остановке %d пассажиров, осталось вместительности %d\n\n", b.number, tackedPassengersCount, b.capacity-b.passengers))
+				logStop(f, time.Now(), fmt.Sprintf("Автобус %d взял на остановке %d пассажиров, осталось вместительности %d\n", b.number, tackedPassengersCount, b.capacity-b.passengers))
+				logStop(f, time.Now(), fmt.Sprintf("Время ожидания взятых автобусом %d пассажиров: %s \n\n", b.number, waitingTimeOfEachPassenger))
 			}
 		}
+
+		b.position.Unlock()
 
 		time.Sleep(time.Duration(b.route.wayTime[b.position]) * multipliedTimeForWaysBetweenStops)
 	}
@@ -269,8 +314,25 @@ func (b *Bus) startTwoSideRoute() {
 		// часть вышла
 		b.passengers = passengersOutFunc(b.passengers, time.Now())
 
+		b.position.Lock()
+
 		// генерируем еще пассажиров к уже стоящим
 		passengers := passengersGenerateFunc(b.position.passengerCount, time.Now())
+		for i := 0; i < passengers; i++ {
+			b.position.waitingPassengers = append(b.position.waitingPassengers, Passenger{time.Now()})
+		}
+
+		// сортируем по времени ожидания в порядке: от самого дальнего времени к самому ближнему к настоящему
+		sort.Slice(b.position.waitingPassengers, func(i, j int) bool {
+			firstTime := b.position.waitingPassengers[i].startTimeOfWaiting
+			secondTime := b.position.waitingPassengers[j].startTimeOfWaiting
+			return firstTime.Before(secondTime)
+		})
+
+		b.position.passengerCount = passengers
+
+		// для логирования создадим переменную которая накопит время ожидания пассажиров
+		waitingTimeOfEachPassenger := ""
 
 		if passengers > 0 {
 			tackedPassengersCount := 0
@@ -278,12 +340,21 @@ func (b *Bus) startTwoSideRoute() {
 				if b.capacity >= b.passengers+1 {
 					b.passengers++
 					tackedPassengersCount++
+					b.position.passengerCount--
+
+					waitingTimeOfCurrentPassenger := time.Now().Sub(b.position.waitingPassengers[0].startTimeOfWaiting)
+					waitingTimeOfEachPassenger += fmt.Sprintf("Пассажир №%d : %s; ", i+1, waitingTimeOfCurrentPassenger)
+					b.position.waitingPassengers = b.position.waitingPassengers[1:]
 				}
 			}
 			if tackedPassengersCount != 0 {
-				logStop(f, time.Now(), fmt.Sprintf("Автобус %d взял на остановке %d пассажиров, осталось вместительности %d\n\n", b.number, tackedPassengersCount, b.capacity-b.passengers))
+				logStop(f, time.Now(), fmt.Sprintf("Автобус %d взял на остановке %d пассажиров, осталось вместительности %d\n", b.number, tackedPassengersCount, b.capacity-b.passengers))
+				logStop(f, time.Now(), fmt.Sprintf("Время ожидания взятых автобусом %d пассажиров: %s \n\n", b.number, waitingTimeOfEachPassenger))
 			}
 		}
+
+		b.position.Unlock()
+
 		time.Sleep(time.Duration(b.route.wayTime[b.position]) * multipliedTimeForWaysBetweenStops)
 	}
 
