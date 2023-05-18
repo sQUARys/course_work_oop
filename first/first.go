@@ -161,18 +161,19 @@ func main() {
 	fmt.Printf("В кинотеатре на улице %s были оформлены следующие билеты на фильм\n", cinema.adress)
 	fmt.Println("\n...Обычные залы...")
 	for _, hall := range cinema.halls {
+		fmt.Printf("Зал №%d:\n", hall.number)
 		customer.printTicketsOfCurrentHall(hall.number)
 		beneficiary.printTicketsOfCurrentHall(hall.number)
 	}
 	fmt.Println("\n...VIP залы...")
 	for _, hall := range cinema.halls {
+		fmt.Printf("Vip Зал №%d:\n", hall.number)
 		customer.printTicketsOfCurrentHall(hall.number)
 		beneficiary.printTicketsOfCurrentHall(hall.number)
 	}
 }
 
 func (c *BasicCustomer) printTicketsOfCurrentHall(hallNumber int) {
-	fmt.Printf("Зал №%d:\n", hallNumber)
 	for movie, tickets := range c.tickets {
 		if tickets.hallNumber == hallNumber {
 			fmt.Printf("--%s приобрел %d билетов на фильм \"%s\" на время %s",
@@ -185,8 +186,7 @@ func (c *BasicCustomer) printTicketsOfCurrentHall(hallNumber int) {
 func (b *Beneficiary) printTicketsOfCurrentHall(hallNumber int) {
 	for movie, tickets := range b.tickets {
 		if tickets.hallNumber == hallNumber {
-			fmt.Printf("Зал №%d:\n", hallNumber)
-			fmt.Printf("--%s приобрел %d билетов на фильм \"%s\" на время %s",
+			fmt.Printf("--%s приобрел %d билетов на фильм \"%s\" на время %s\n",
 				b.name, b.tickets[movie].countOfTickets, movie.title, movie.startTime.UTC())
 		}
 	}
