@@ -1,20 +1,19 @@
 @startuml
 namespace main {
     class Edge << (S,Aquamarine) >> {
-        - u int
-        - weight float64
+        - u: int
+        - weight: float64
 
     }
     class Graph << (S,Aquamarine) >> {
-        - edges []Edge
-        - adjList <font color=blue>map</font>[int][]Edge
-        - vertexCount int
+        - edges: []Edge
+        - adjList: <font color=blue>map</font>[int][]Edge
+        - vertexCount: int
 
-        + AddEdge(u int, v int, weight float64) 
-        + MaxFlow(source int, sink int) float64
+        + AddEdge(в u int,в v int,в weight float64)
+        + MaxFlow(в source int,в sink int): вых float64
 
     }
 }
-
 
 @enduml

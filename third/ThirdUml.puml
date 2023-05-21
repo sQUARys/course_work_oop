@@ -1,42 +1,41 @@
 @startuml
 namespace main {
     class Bus << (S,Aquamarine) >> {
-        - number int
-        - routeNumber int
-        - route *BusRoute
-        - position *Stop
-        - positionIndex int
-        - passengers int
-        - capacity int
+        - number: int
+        - routeNumber: int
+        - route: *BusRoute
+        - position: *Stop
+        - positionIndex: int
+        - passengers: int
+        - capacity: int
 
-        - startWorking(wg *sync.WaitGroup) 
+        - startWorking(в wg *sync.WaitGroup)
         - startTwoSideRoute() 
         - goToNextStop() 
         - goToPrevStop() 
 
     }
     class BusController << (S,Aquamarine) >> {
-        - buses []*Bus
+        - buses: []*Bus
 
-        + Simulate() 
-
+        + Simulate()
     }
     class BusRoute << (S,Aquamarine) >> {
-        - stops []*Stop
-        - wayTime <font color=blue>map</font>[*Stop]int
-        - timeGapBetweenBuses time.Duration
-        - countOfBussesNeededInTheRoute <font color=blue>func</font>(time.Time) int
-        - countOfCurrentBusesInTheRoute int
+        - stops: []*Stop
+        - wayTime: <font color=blue>map</font>[*Stop]int
+        - timeGapBetweenBuses: time.Duration
+        - countOfBussesNeededInTheRoute: <font color=blue>func</font>(в time.Time): вых int
+        - countOfCurrentBusesInTheRoute: int
 
     }
     class Passenger << (S,Aquamarine) >> {
-        - startTimeOfWaiting time.Time
+        - startTimeOfWaiting: time.Time
 
     }
     class Stop << (S,Aquamarine) >> {
-        - name string
-        - passengerCount int
-        - waitingPassengers []Passenger
+        - name: string
+        - passengerCount: int
+        - waitingPassengers: []Passenger
 
     }
 }

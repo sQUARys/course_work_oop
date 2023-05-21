@@ -1,68 +1,68 @@
 @startuml
 namespace main {
     class BasicCustomer << (S,Aquamarine) >> {
-        - name string
-        - balance int
-        - tickets <font color=blue>map</font>[Movie]Tickets
+        - name: string
+        - balance: int
+        - tickets: <font color=blue>map</font>[Movie]Tickets
 
-        - printTicketsOfCurrentHall(hallNumber int) 
-        - buyTicket(hallI HallI, movie Movie, countOfTickets int) error
+        - printTicketsOfCurrentHall(в hallNumber: int)
+        - buyTicket(в hallI: HallI,в movie: Movie,в countOfTickets: int): вых error
 
     }
     class Beneficiary << (S,Aquamarine) >> {
-        - name string
-        - balance int
-        - tickets <font color=blue>map</font>[Movie]Tickets
+        - name: string
+        - balance: int
+        - tickets: <font color=blue>map</font>[Movie]Tickets
 
-        - printTicketsOfCurrentHall(hallNumber int) 
-        - buyTicket(hallI HallI, movie Movie, countOfTickets int) error
+        - printTicketsOfCurrentHall(в hallNumber: int)
+        - buyTicket(в hallI: HallI,в movie: Movie,в countOfTickets: int): вых error
 
     }
     class Cinema << (S,Aquamarine) >> {
-        - adress string
-        - halls []*Hall
-        - vipHalls []*VipHall
+        - adress: string
+        - halls: []*Hall
+        - vipHalls: []*VipHall
 
     }
     interface CustomerI  {
-        - printTicketsOfCurrentHall(hallNumber int) 
-        - buyTicket(hall HallI, movie Movie, countOfTickets int) error
+        - printTicketsOfCurrentHall(в hallNumber: int)
+        - buyTicket(в hall: HallI,в movie: Movie,в countOfTickets: int): вых error
 
     }
     class Hall << (S,Aquamarine) >> {
-        - number int
-        - movieMap <font color=blue>map</font>[Movie]int
-        - capacity int
+        - number: int
+        - movieMap: <font color=blue>map</font>[Movie]int
+        - capacity: int
 
-        - getAddedCostCoefficient() int
-        - getCurrentHall() (*Hall, int, int, bool)
+        - getAddedCostCoefficient(): вых int
+        - getCurrentHall(): (вых *Hall,вых int,вых int,вых bool)
 
     }
     interface HallI  {
-        - getCurrentHall() (*Hall, int, int, bool)
-        - getAddedCostCoefficient() int
+        - getCurrentHall(): (вых *Hall,вых int,вых int,вых bool)
+        - getAddedCostCoefficient(): вых int
 
     }
     class Movie << (S,Aquamarine) >> {
-        - title string
-        - startTime time.Time
-        - duration time.Duration
-        - ticketPrice int
+        - title: string
+        - startTime: time.Time
+        - duration: time.Duration
+        - ticketPrice: int
 
     }
     class Tickets << (S,Aquamarine) >> {
-        - isVipHall bool
-        - hallNumber int
-        - movie Movie
-        - price int
-        - countOfTickets int
+        - isVipHall: bool
+        - hallNumber: int
+        - movie: Movie
+        - price: int
+        - countOfTickets: int
 
     }
     class VipHall << (S,Aquamarine) >> {
-        - addedCostCoefficient int
+        - addedCostCoefficient: int
 
-        - getAddedCostCoefficient() int
-        - getCurrentHall() (*Hall, int, int, bool)
+        - getAddedCostCoefficient(): вых int
+        - getCurrentHall(): (вых *Hall,вых int,вых int,вых bool)
 
     }
 }
